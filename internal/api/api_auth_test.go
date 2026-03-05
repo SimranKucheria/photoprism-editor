@@ -308,7 +308,7 @@ func newPortalJWTFixture(t *testing.T, suffix string) portalJWTFixture {
 
 	nodeConf := config.NewMinimalTestConfigWithDb("auth-any-portal-jwt-"+suffix, t.TempDir())
 
-	nodeConf.Options().NodeRole = cluster.RoleApp
+	nodeConf.Options().NodeRole = cluster.RoleInstance
 	nodeConf.Options().Public = false
 	clusterUUID := rnd.UUID()
 	nodeConf.Options().ClusterUUID = clusterUUID
@@ -317,7 +317,7 @@ func newPortalJWTFixture(t *testing.T, suffix string) portalJWTFixture {
 
 	portalConf := config.NewMinimalTestConfigWithDb("auth-any-portal-jwt-issuer-"+suffix, t.TempDir())
 
-	portalConf.Options().NodeRole = cluster.RolePortal
+	enablePortalAPIs(t, portalConf)
 	portalConf.Options().ClusterUUID = clusterUUID
 
 	mgr, err := clusterjwt.NewManager(portalConf)

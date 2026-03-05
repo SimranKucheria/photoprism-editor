@@ -27,8 +27,11 @@ var savedPath string
 // and re-registers the DB provider before each command invocation. If you see
 // "config: database not connected" during test runs, consider moving shutdown
 // behavior behind an interface or gating it for tests.
-
 func TestMain(m *testing.M) {
+	os.Exit(testMain(m))
+}
+
+func testMain(m *testing.M) (code int) {
 	_ = os.Setenv("TF_CPP_MIN_LOG_LEVEL", "3")
 
 	log = logrus.StandardLogger()
@@ -68,7 +71,7 @@ func TestMain(m *testing.M) {
 
 	// Run unit tests.
 	beforeTimestamp := time.Now().UTC()
-	code := m.Run()
+	code = m.Run()
 	code = testextras.ValidateDBErrors(c.Db(), log, beforeTimestamp, code)
 
 	testextras.ReleaseDBMutex(dbc.Db(), log, caller, code)
@@ -82,7 +85,7 @@ func TestMain(m *testing.M) {
 	// Remove temporary SQLite files after running the tests.
 	fs.PurgeTestDbFiles(".", false)
 
-	os.Exit(code)
+	return code
 }
 
 // SetEnvForTest sets an environment variable and restores its original value after the test.
@@ -127,7 +130,7 @@ func NewTestContext(args []string) *cli.Context {
 	app.HideHelpCommand = true
 	app.Action = func(*cli.Context) error { return nil }
 	app.EnableBashCompletion = false
-	app.Metadata = map[string]interface{}{
+	app.Metadata = map[string]any{
 		"Name":    "PhotoPrism",
 		"About":   "PhotoPrism®",
 		"Edition": "ce",
@@ -164,7 +167,7 @@ func NewTestContextWithParse(appArgs []string, cmdArgs []string) *cli.Context {
 	app.HideHelpCommand = true
 	app.Action = func(*cli.Context) error { return nil }
 	app.EnableBashCompletion = false
-	app.Metadata = map[string]interface{}{
+	app.Metadata = map[string]any{
 		"Name":    "PhotoPrism",
 		"About":   "PhotoPrism®",
 		"Edition": "ce",
@@ -174,7 +177,7 @@ func NewTestContextWithParse(appArgs []string, cmdArgs []string) *cli.Context {
 	// Parse photoprism command arguments.
 	photoprismFlagSet := flag.NewFlagSet("photoprism", flag.ContinueOnError)
 	for _, f := range app.Flags {
-		f.Apply(photoprismFlagSet)
+		LogErr(f.Apply(photoprismFlagSet))
 	}
 	LogErr(photoprismFlagSet.Parse(appArgs[1:]))
 
@@ -189,7 +192,8 @@ func NewTestContextWithParse(appArgs []string, cmdArgs []string) *cli.Context {
 func RunWithProvidedTestContext(ctx *cli.Context, cmd *cli.Command, args []string) (output string, err error) {
 	// Ensure DB connection is open for each command run (some commands call Shutdown).
 	_ = reopenConnection()
-
+	conf := get.Config()
+	previousOptions := *conf.Options()
 	// Redirect the output from cli to buffer for transfer to output for testing
 	var catureOutput bytes.Buffer
 	oldWriter := ctx.App.Writer
@@ -206,6 +210,8 @@ func RunWithProvidedTestContext(ctx *cli.Context, cmd *cli.Command, args []strin
 	ctx.App.Writer = oldWriter
 	output += catureOutput.String()
 
+	// Reset the config options just in case they have been affected
+	*conf.Options() = previousOptions
 	// // Re-open the database after the command completed so follow-up checks
 	// // (potentially issued by the test itself) have an active connection.
 	_ = reopenConnection()

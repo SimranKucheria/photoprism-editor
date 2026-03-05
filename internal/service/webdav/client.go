@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
+	"net"
 	"net/url"
 	"os"
 	"path"
@@ -14,8 +14,10 @@ import (
 
 	"github.com/emersion/go-webdav"
 
+	"github.com/photoprism/photoprism/internal/service"
 	"github.com/photoprism/photoprism/pkg/clean"
 	"github.com/photoprism/photoprism/pkg/fs"
+	"github.com/photoprism/photoprism/pkg/http/safe"
 )
 
 // Client represents a webdav client.
@@ -25,17 +27,15 @@ type Client struct {
 	endpoint *url.URL
 	timeout  time.Duration
 	mkdir    map[string]bool
+	cidrs    []*net.IPNet
 }
 
 // clientUrl returns the validated server url including username and password, if specified.
 func clientUrl(serverUrl, user, pass string) (*url.URL, error) {
-	result, err := url.Parse(serverUrl)
+	result, err := safe.URL(serverUrl)
 
-	// Check url.
 	if err != nil {
 		return nil, err
-	} else if result == nil {
-		return nil, fmt.Errorf("invalid server url")
 	}
 
 	// Set user and password if provided.
@@ -47,21 +47,28 @@ func clientUrl(serverUrl, user, pass string) (*url.URL, error) {
 }
 
 // NewClient creates a new WebDAV client for the specified endpoint.
-func NewClient(serverUrl, user, pass string, timeout Timeout) (*Client, error) {
-	// Create a new http.Client without timeout.
-	httpClient := &http.Client{}
-
+func NewClient(serverUrl, user, pass string, timeout Timeout, servicesCIDR string) (*Client, error) {
 	endpoint, err := clientUrl(serverUrl, user, pass)
 
 	if err != nil {
 		return nil, err
 	}
 
+	allowedCIDRs, err := service.ParseCIDRs(servicesCIDR)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if validateErr := service.ValidateURLHost(endpoint, allowedCIDRs, 5*time.Second); validateErr != nil {
+		return nil, validateErr
+	}
+
 	serverUrl = endpoint.String()
 
 	log.Debugf("webdav: connecting to %s", clean.Log(serverUrl))
 
-	client, err := webdav.NewClient(httpClient, serverUrl)
+	client, err := webdav.NewClient(service.NewHTTPClient(0, allowedCIDRs), serverUrl)
 
 	if err != nil {
 		return nil, err
@@ -74,6 +81,7 @@ func NewClient(serverUrl, user, pass string, timeout Timeout) (*Client, error) {
 		endpoint: endpoint,
 		timeout:  Durations[timeout],
 		mkdir:    make(map[string]bool, 128),
+		cidrs:    allowedCIDRs,
 	}
 
 	return result, nil
@@ -88,7 +96,7 @@ func (c *Client) withTimeout(timeout time.Duration) *webdav.Client {
 	}
 
 	// Create webdav client with the specified total request time.
-	client, err := webdav.NewClient(&http.Client{Timeout: timeout}, c.endpoint.String())
+	client, err := webdav.NewClient(service.NewHTTPClient(timeout, c.cidrs), c.endpoint.String())
 
 	if err != nil {
 		return c.client
@@ -269,12 +277,12 @@ func (c *Client) Download(src, dest string, force bool) (err error) {
 	src = trimPath(src)
 
 	// Skip if file already exists.
-	if _, err := os.Stat(dest); err == nil && !force {
+	if fs.Exists(dest) && !force {
 		return fmt.Errorf("webdav: download skipped, %s already exists", clean.Log(dest))
 	}
 
 	dir := path.Dir(dest)
-	dirInfo, err := os.Stat(dir)
+	dirInfo, err := fs.Stat(dir)
 
 	if err != nil {
 		// Create local storage path.
@@ -337,7 +345,7 @@ func (c *Client) DownloadDir(src, dest string, recursive, force bool) (errs []er
 		fileName := path.Join(dest, file.Abs)
 
 		// Check if file already exists.
-		if _, err = os.Stat(fileName); err == nil {
+		if fs.Exists(fileName) {
 			msg := fmt.Errorf("webdav: %s already exists", clean.Log(fileName))
 			log.Warn(msg)
 			errs = append(errs, msg)

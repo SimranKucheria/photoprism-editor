@@ -522,7 +522,7 @@ func populatePhotoPrismStructsWithMin(t *testing.T, db *gorm.DB) {
 func populatePhotoPrismStructsWithMax(t *testing.T, db *gorm.DB) {
 	var uintMaxInt64 bool
 
-	switch db.Dialector.Name() {
+	switch db.Name() {
 	case entity.SQLite3, entity.Postgres:
 		uintMaxInt64 = true
 	default:
@@ -895,7 +895,7 @@ func populatePhotoPrismStructsWithMax(t *testing.T, db *gorm.DB) {
 
 }
 
-func populateStructWithMin(m interface{}) (err error) {
+func populateStructWithMin(m any) (err error) {
 
 	r := reflect.ValueOf(m)
 
@@ -914,7 +914,7 @@ func populateStructWithMin(m interface{}) (err error) {
 
 	vT := values.Type()
 	num := vT.NumField()
-	for i := 0; i < num; i++ {
+	for i := range num {
 		field := vT.Field(i)
 
 		// Skip non-exported fields.
@@ -980,7 +980,7 @@ func populateStructWithMin(m interface{}) (err error) {
 					timeTime := time.Date(1000, 01, 01, 0, 0, 0, 0, time.UTC)
 					v.Set(reflect.ValueOf(&timeTime)) // Mariadb limitation
 				default:
-					//case "*time.Time", "*time.Duration", "*bool", "*uint", "*uint64", "*uint32", "*int", "*int64", "*int32", "*string", "*float32", "*float64", "*otp.Key", "*sql.NullTime", "*json.RawMessage":
+					// case "*time.Time", "*time.Duration", "*bool", "*uint", "*uint64", "*uint32", "*int", "*int64", "*int32", "*string", "*float32", "*float64", "*otp.Key", "*sql.NullTime", "*json.RawMessage":
 					log.Debugf("reflect.Pointer with Unhandled type %s for field %s", v.Type().String(), field.Name)
 				}
 			case reflect.Uint:
@@ -1052,7 +1052,7 @@ func populateStructWithMin(m interface{}) (err error) {
 	return nil
 }
 
-func populateStructWithMax(m interface{}, uintMaxInt64 bool) (err error) {
+func populateStructWithMax(m any, uintMaxInt64 bool) (err error) {
 
 	r := reflect.ValueOf(m)
 
@@ -1071,7 +1071,7 @@ func populateStructWithMax(m interface{}, uintMaxInt64 bool) (err error) {
 
 	vT := values.Type()
 	num := vT.NumField()
-	for i := 0; i < num; i++ {
+	for i := range num {
 		field := vT.Field(i)
 
 		// Skip non-exported fields.
@@ -1092,19 +1092,13 @@ func populateStructWithMax(m interface{}, uintMaxInt64 bool) (err error) {
 
 		switch v.Kind() {
 		case reflect.Struct:
-			switch v.Type().String() {
-			case "time.Time":
+			if v.Type().String() == "time.Time" {
 				v.Set(reflect.ValueOf(time.Date(9999, 12, 31, 23, 59, 59, 999999, time.UTC))) // Mariadb limitation
-				//case "sql.NullTime", "time.Duration":
-
 			}
 		case reflect.Pointer:
-			switch v.Type().String() {
-			case "*time.Time":
+			if v.Type().String() == "*time.Time" {
 				timeTime := time.Date(9999, 12, 31, 23, 59, 59, 999999, time.UTC)
 				v.Set(reflect.ValueOf(&timeTime)) // Mariadb limitation
-
-				// case "*time.Time", "*time.Duration", "*bool", "*uint", "*uint64", "*uint32", "*int", "*int64", "*int32", "*string", "*float32", "*float64", "*otp.Key", "*sql.NullTime", "*json.RawMessage":
 			}
 		case reflect.Uint:
 			if strings.Contains(tag, "size") {
@@ -1230,7 +1224,7 @@ func randomString(len int) string {
 	sb := strings.Builder{}
 	sb.Grow(len)
 	for i := 0; i < len; {
-		sb.WriteByte(characterRunes[rand.IntN(53)])
+		sb.WriteByte(characterRunes[rand.IntN(53)]) //nolint:gosec // non crypto rand is sufficient for these tests
 		i++
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/photoprism/photoprism/internal/ai/face"
 	"github.com/photoprism/photoprism/internal/ai/vision"
+	"github.com/photoprism/photoprism/pkg/clean"
 	"github.com/photoprism/photoprism/pkg/dsn"
 )
 
@@ -141,6 +142,15 @@ func (c *Config) Report() (rows [][]string, cols []string) {
 		{"default-locale", c.DefaultLocale()},
 		{"default-timezone", c.DefaultTimezone().String()},
 		{"default-theme", c.DefaultTheme()},
+	}...)
+
+	if Features == Pro || c.Portal() {
+		rows = append(rows, [][]string{
+			{"theme-url", c.ThemeUrlRedacted()},
+		}...)
+	}
+
+	rows = append(rows, [][]string{
 		{"places-locale", c.PlacesLocale()},
 		{"app-name", c.AppName()},
 		{"app-mode", c.AppMode()},
@@ -170,6 +180,7 @@ func (c *Config) Report() (rows [][]string, cols []string) {
 
 		// URIs.
 		{"base-uri", c.BaseUri("/")},
+		{"frontend-uri", c.FrontendUri("")},
 		{"api-uri", c.ApiUri()},
 		{"static-uri", c.StaticUri()},
 		{"content-uri", c.ContentUri()},
@@ -179,32 +190,40 @@ func (c *Config) Report() (rows [][]string, cols []string) {
 		{"cluster-domain", c.ClusterDomain()},
 		{"cluster-cidr", c.ClusterCIDR()},
 		{"cluster-uuid", c.ClusterUUID()},
-		{"portal-url", c.PortalUrl()},
-		{"portal-proxy", fmt.Sprintf("%t", c.PortalProxy())},
-		{"portal-config-path", c.PortalConfigPath()},
-		{"portal-theme-path", c.PortalThemePath()},
+		{"portal-url", clean.UriRedacted(c.PortalUrl())},
+	}...)
+
+	if c.Portal() {
+		rows = append(rows, [][]string{
+			{"portal-proxy", fmt.Sprintf("%t", c.PortalProxy())},
+			{"portal-proxy-uri", c.PortalProxyUri()},
+			{"portal-config-path", c.PortalConfigPath()},
+			{"portal-theme-path", c.PortalThemePath()},
+		}...)
+	}
+
+	rows = append(rows, [][]string{
 		{"join-token", strings.Repeat("*", utf8.RuneCountInString(c.JoinToken()))},
 		{"node-name", c.NodeName()},
 		{"node-role", c.NodeRole()},
 		{"node-uuid", c.NodeUUID()},
 		{"node-client-id", c.NodeClientID()},
 		{"node-client-secret", strings.Repeat("*", utf8.RuneCountInString(c.NodeClientSecret()))},
-		{"jwks-url", c.JWKSUrl()},
+		{"jwks-url", clean.UriRedacted(c.JWKSUrl())},
 		{"jwks-cache-ttl", fmt.Sprintf("%d", c.JWKSCacheTTL())},
 		{"jwt-scope", c.JWTAllowedScopes().String()},
 		{"jwt-leeway", fmt.Sprintf("%d", c.JWTLeeway())},
-		{"advertise-url", c.AdvertiseUrl()},
-	}...)
+		{"advertise-url", clean.UriRedacted(c.AdvertiseUrl())},
 
-	rows = append(rows, [][]string{
-		// Proxy Servers.
-		{"https-proxy", c.HttpsProxy()},
+		// Networking.
+		{"https-proxy", clean.UriRedacted(c.HttpsProxy())},
 		{"https-proxy-insecure", fmt.Sprintf("%t", c.HttpsProxyInsecure())},
 		{"trusted-platform", c.TrustedPlatform()},
 		{"trusted-proxy", c.TrustedProxy()},
 		{"proxy-client-header", c.ProxyClientHeader()},
 		{"proxy-proto-header", strings.Join(c.ProxyProtoHeader(), ", ")},
 		{"proxy-proto-https", strings.Join(c.ProxyProtoHttps(), ", ")},
+		{"services-cidr", c.ServicesCIDR()},
 
 		// Web Server.
 		{"disable-tls", fmt.Sprintf("%t", c.DisableTLS())},
@@ -297,7 +316,7 @@ func (c *Config) Report() (rows [][]string, cols []string) {
 		// Computer Vision & Facial Recognition.
 		{"vision-yaml", c.VisionYaml()},
 		{"vision-api", fmt.Sprintf("%t", c.VisionApi())},
-		{"vision-uri", c.VisionUri()},
+		{"vision-uri", clean.UriRedacted(c.VisionUri())},
 		{"vision-key", strings.Repeat("*", utf8.RuneCountInString(c.VisionKey()))},
 		{"vision-schedule", c.VisionSchedule()},
 		{"vision-filter", c.VisionFilter()},

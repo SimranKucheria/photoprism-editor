@@ -15,7 +15,7 @@ import (
 // TableMap holds the table name and the definition
 type TableMap struct {
 	TableName       string
-	TableDefinition interface{}
+	TableDefinition any
 }
 
 // Tables is the map to allow ordered table setup/teardown
@@ -347,6 +347,25 @@ func (list Tables) Migrate(db *gorm.DB, opt migrate.Options) {
 
 	// Run ORM auto migrations.
 	if opt.AutoMigrate {
+		// Check if the DBMS AuthID fix has been applied?
+		version := migrate.FirstOrCreateVersion(db, migrate.NewVersion("DBMS AuthID Fix", "Any Editions"))
+		if version.NeedsMigration() {
+			if err := migrate.ConvertDBMSAuthIDDataTypes(db); err != nil {
+				log.Errorf("migrate: could not apply dbms auth_id fix : %v", err)
+				version.Error = err.Error()
+				if saveErr := version.Save(db); saveErr != nil {
+					log.Errorf("migrate: could not save dbms auth_id fix status: %v", saveErr)
+				}
+			} else {
+				if migratedErr := version.Migrated(db); migratedErr != nil {
+					log.Errorf("migrate: could not persist dbms auth_id fix status: %v", migratedErr)
+				}
+				log.Debug("migrate: DBMS AuthID fix migrated")
+			}
+		} else {
+			log.Debug("migrate: DBMS AuthID fix skipped")
+		}
+
 		// Check if the GORMv2 sqlite conversion has been done?
 		if db.Dialector.Name() == SQLite3 {
 			version := migrate.FirstOrCreateVersion(db, migrate.NewVersion("Gorm For SQLite", "V2 Upgrade"))
@@ -373,7 +392,7 @@ func (list Tables) Migrate(db *gorm.DB, opt migrate.Options) {
 			log.Error("migrate: could not setup join table for Label - Categories: ", err)
 		}
 
-		var entity interface{}
+		var entity any
 		orderedList := make([]int, len(list))
 		i := 0
 		for id := range list {

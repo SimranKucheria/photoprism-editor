@@ -28,15 +28,16 @@ func obtainClientCredentialsViaRegister(portalURL, joinToken, nodeName string) (
 
 	payload := cluster.RegisterRequest{
 		NodeName:     nodeName,
-		NodeRole:     cluster.RoleApp,
+		NodeRole:     cluster.RoleInstance,
 		RotateSecret: true,
 	}
 	b, _ := json.Marshal(payload)
-	req, _ := http.NewRequest(http.MethodPost, endpoint.String(), bytes.NewReader(b))
+	// endpoint is derived from a parsed portal URL with explicit scheme/host validation above.
+	req, _ := http.NewRequest(http.MethodPost, endpoint.String(), bytes.NewReader(b)) //nolint:gosec
 	req.Header.Set("Content-Type", "application/json")
 	header.SetAuthorization(req, joinToken)
 
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := (&http.Client{}).Do(req) //nolint:gosec
 	if err != nil {
 		return "", "", err
 	}

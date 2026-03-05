@@ -12,6 +12,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -40,7 +41,7 @@ func TestDialectMysql(t *testing.T) {
 		// Prepare migrate mariadb db.
 		if dumpName, err := filepath.Abs("../migrate/testdata/migrate_mysql.sql"); err != nil {
 			t.Fatal(err)
-		} else if err = exec.Command("mariadb", "-u", "migrate", "-pmigrate", fmt.Sprintf("migrate_%02d", testextras.GetDBMutexID()),
+		} else if err = exec.Command("mariadb", "-u", "migrate", "-pmigrate", fmt.Sprintf("migrate_%02d", testextras.GetDBMutexID()), //nolint:gosec // test generated input
 			"-e", "source "+dumpName).Run(); err != nil {
 			t.Fatal(err)
 		}
@@ -101,8 +102,9 @@ func TestDialectMysql(t *testing.T) {
 		assert.Contains(t, buffer.String(), fmt.Sprintf("Table 'migrate_%02d.auth_users_settings' doesn't exist", testextras.GetDBMutexID()))
 		assert.Contains(t, buffer.String(), fmt.Sprintf("Table 'migrate_%02d.auth_users_shares' doesn't exist", testextras.GetDBMutexID()))
 		// There is a blank record.
-		assert.Equal(t, 6, len(strings.Split(buffer.String(), "\n")))
-		if len(strings.Split(buffer.String(), "\n")) != 6 {
+		numberOfErrorsExpected := 7
+		assert.Equal(t, numberOfErrorsExpected, len(strings.Split(buffer.String(), "\n")))
+		if len(strings.Split(buffer.String(), "\n")) != numberOfErrorsExpected {
 			for i := 0; i < len(strings.Split(buffer.String(), "\n")); i++ {
 				assert.Empty(t, strings.Split(buffer.String(), "\n")[i])
 			}
@@ -136,7 +138,7 @@ func TestDialectMysql(t *testing.T) {
 		// Prepare migrate mariadb db.
 		if dumpName, err := filepath.Abs("../migrate/testdata/migrate_mysql.sql"); err != nil {
 			t.Fatal(err)
-		} else if err = exec.Command("mariadb", "-u", "migrate", "-pmigrate", fmt.Sprintf("migrate_%02d", testextras.GetDBMutexID()),
+		} else if err = exec.Command("mariadb", "-u", "migrate", "-pmigrate", fmt.Sprintf("migrate_%02d", testextras.GetDBMutexID()), //nolint:gosec // test generated input
 			"-e", "source "+dumpName).Run(); err != nil {
 			t.Fatal(err)
 		}
@@ -183,8 +185,8 @@ func TestDialectMysql(t *testing.T) {
 		opt := migrate.Opt(true, true, nil)
 
 		// Make sure that migrate and version is done, as the Once doesn't work as it has already been set before we opened the new database..
-		err = db.AutoMigrate(&migrate.Migration{})
-		err = db.AutoMigrate(&migrate.Version{})
+		require.NoError(t, db.AutoMigrate(&migrate.Migration{}))
+		require.NoError(t, db.AutoMigrate(&migrate.Version{}))
 
 		// Setup and capture SQL Logging output
 		buffer := bytes.Buffer{}
@@ -201,8 +203,9 @@ func TestDialectMysql(t *testing.T) {
 		assert.Contains(t, buffer.String(), fmt.Sprintf("Table 'migrate_%02d.auth_users_settings' doesn't exist", testextras.GetDBMutexID()))
 		assert.Contains(t, buffer.String(), fmt.Sprintf("Table 'migrate_%02d.auth_users_shares' doesn't exist", testextras.GetDBMutexID()))
 		// There is a blank record.
-		assert.Equal(t, 6, len(strings.Split(buffer.String(), "\n")))
-		if len(strings.Split(buffer.String(), "\n")) != 6 {
+		numberOfErrorsExpected := 7
+		assert.Equal(t, numberOfErrorsExpected, len(strings.Split(buffer.String(), "\n")))
+		if len(strings.Split(buffer.String(), "\n")) != numberOfErrorsExpected {
 			for i := 0; i < len(strings.Split(buffer.String(), "\n")); i++ {
 				assert.Empty(t, strings.Split(buffer.String(), "\n")[i])
 			}

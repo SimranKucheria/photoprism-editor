@@ -65,7 +65,7 @@ services:
       ## OpenID Connect (pre-configured for local tests):
       ## see https://keycloak.localssl.dev/realms/master/.well-known/openid-configuration
       ## the seeded "photoprism-develop" client in scripts/sql/mariadb-init.sql
-      ## allows callbacks for /api/v1/oidc/redirect and /p/* paths
+      ## allows callbacks for /api/v1/oidc/redirect and /i/* paths
       PHOTOPRISM_OIDC_URI: "https://keycloak.localssl.dev/realms/master"
       PHOTOPRISM_OIDC_CLIENT: "photoprism-develop"
       PHOTOPRISM_OIDC_SECRET: "9d8351a0-ca01-4556-9c37-85eb634869b9"
@@ -144,10 +144,13 @@ services:
       PHOTOPRISM_VISION_KEY: ""                      # client: service access token (for authentication)
       OLLAMA_BASE_URL: "http://ollama:11434"         # use "https://ollama.com" for Ollama Cloud
       OLLAMA_API_KEY: ""                             # API key required to access Ollama (optional)
-      ## External dependencies and tools:
+      ## Additional dependencies and tools:
       TF_CPP_MIN_LOG_LEVEL: 1
       GOCACHE: "/go/src/github.com/photoprism/photoprism/.local/gocache"
       CODEX_HOME: "/go/src/github.com/photoprism/photoprism/.local/codex"
+      CLAUDE_CONFIG_DIR: "/go/src/github.com/photoprism/photoprism/.local/claude"
+      GH_CONFIG_DIR: "/go/src/github.com/photoprism/photoprism/.local/gh"
+      GH_REPO: "photoprism/photoprism"
     ## Shared devices for video hardware transcoding (optional):
     # devices:
     #  - "/dev/dri:/dev/dri"                         # Required Intel QSV or VAAPI hardware transcoding
@@ -157,23 +160,6 @@ services:
       - ".:/go/src/github.com/photoprism/photoprism"
       - "./storage:/photoprism"
       - "go-mod:/go/pkg/mod"
-
-  ## PostgreSQL Database Server
-  ## Docs: https://www.postgresql.org/docs/
-  postgres:
-    image: postgres:17-alpine
-    stop_grace_period: 15s
-    expose:
-      - "5432"
-    ports:
-      - "5432:5432" # database port (host:container)
-    volumes:
-      - "postgresql:/var/lib/postgresql"
-      - "./scripts/sql/postgresql-init.sql:/docker-entrypoint-initdb.d/init.sql"
-    environment:
-      POSTGRES_DB: photoprism
-      POSTGRES_USER: photoprism
-      POSTGRES_PASSWORD: photoprism
 
   ## MariaDB (Database Server)
   ## Docs: https://mariadb.com/docs/reference/
@@ -186,9 +172,9 @@ services:
       - apparmor:unconfined
     command: --port=4001 --innodb-strict-mode=1 --innodb-buffer-pool-size=256M --transaction-isolation=READ-COMMITTED --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --max-connections=512 --innodb-rollback-on-timeout=OFF --innodb-lock-wait-timeout=120
     expose:
-      - "4001"
+      - "4001" # 3306 isn't used intentionally to avoid conflicts and confuse port scanners
     ports:
-      - "4001:4001" # database port (host:container)
+      - "4001:4001" # MariaDB port (host:container)
     volumes:
       - "mariadb:/var/lib/mysql"
       - "./scripts/sql/mariadb-init.sql:/docker-entrypoint-initdb.d/init.sql"
@@ -199,6 +185,25 @@ services:
       MARIADB_USER: "photoprism"
       MARIADB_PASSWORD: "photoprism"
       MARIADB_ROOT_PASSWORD: "photoprism"
+
+  ## PostgreSQL (Database Server)
+  ## Docs: https://www.postgresql.org/docs/current/index.html
+  ## Release Notes: https://www.postgresql.org/docs/release/
+  postgres:
+    image: postgres:18-alpine
+    stop_grace_period: 15s
+    expose:
+      - "5432"
+    ports:
+      - "4002:5432" # PostgreSQL port (host:container)  5432 isn't used intentionally to avoid conflicts
+    volumes:
+      - "postgres:/var/lib/postgresql"
+      - "./scripts/sql/postgresql-init.sql:/docker-entrypoint-initdb.d/init.sql"
+    environment:
+      POSTGRES_DB: photoprism
+      POSTGRES_USER: photoprism
+      POSTGRES_PASSWORD: photoprism
+      PGDATA: /var/lib/postgresql/18/docker
 
   ## Qdrant (Vector Database)
   ## Docs: https://qdrant.tech/documentation/guides/installation/#docker-compose
@@ -468,6 +473,8 @@ volumes:
   postgresql:
     driver: local
   mariadb:
+    driver: local
+  postgres:
     driver: local
 
 ## Create shared "photoprism" network for connecting with services in other compose.yaml files

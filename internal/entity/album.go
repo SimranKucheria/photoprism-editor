@@ -3,7 +3,7 @@ package entity
 import (
 	"errors"
 	"fmt"
-	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -98,7 +98,7 @@ func (Album) TableName() string {
 }
 
 // UpdateAlbum updates album attributes directly in the database by UID.
-func UpdateAlbum(albumUID string, values interface{}) (err error) {
+func UpdateAlbum(albumUID string, values any) (err error) {
 	if rnd.InvalidUID(albumUID, AlbumUID) {
 		return fmt.Errorf("album: invalid uid %s", clean.Log(albumUID))
 	} else if err = Db().Model(&Album{}).Where("album_uid = ?", albumUID).UpdateColumns(values).Error; err != nil {
@@ -400,7 +400,7 @@ func FindAlbumByAttr(slugs, filters []string, albumType string) *Album {
 
 // FindFolderAlbum looks up a folder album by its canonical path or slug.
 func FindFolderAlbum(albumPath string) *Album {
-	albumPath = strings.Trim(albumPath, string(os.PathSeparator))
+	albumPath = clean.SlashPath(albumPath)
 	albumSlug := txt.Slug(albumPath)
 
 	if albumSlug == "" {
@@ -736,7 +736,7 @@ func (m *Album) SaveForm(f *form.Album) error {
 }
 
 // Update sets a new value for a database column.
-func (m *Album) Update(attr string, value interface{}) error {
+func (m *Album) Update(attr string, value any) error {
 	if m == nil {
 		return errors.New("album must not be nil - you may have found a bug")
 	} else if !m.HasID() {
@@ -747,7 +747,7 @@ func (m *Album) Update(attr string, value interface{}) error {
 }
 
 // Updates multiple columns in the database.
-func (m *Album) Updates(values interface{}) error {
+func (m *Album) Updates(values any) error {
 	if m == nil {
 		return errors.New("album must not be nil - you may have found a bug")
 	} else if !m.HasID() {
@@ -757,27 +757,98 @@ func (m *Album) Updates(values interface{}) error {
 	return UnscopedDb().Model(m).Updates(values).Error
 }
 
-// UpdateFolder updates the path, filter and slug for a folder album.
-func (m *Album) UpdateFolder(albumPath, albumFilter string) error {
+// extractAlbumFilterPath extracts a normalized path value from a serialized search filter.
+func extractAlbumFilterPath(albumFilter string) string {
+	if strings.TrimSpace(albumFilter) == "" {
+		return ""
+	}
+
+	frm := form.SearchPhotos{Query: albumFilter}
+
+	if err := frm.ParseQueryString(); err != nil || frm.Path == "" {
+		return ""
+	}
+
+	return clean.SlashPath(frm.Path)
+}
+
+// shouldRepairFolderAlbumTitle reports whether a folder album title likely
+// still reflects a collision state and should be repaired.
+func shouldRepairFolderAlbumTitle(currentTitle, folderTitle, albumPath, albumFilter string) bool {
+	albumPath = clean.SlashPath(albumPath)
+	folderTitle = strings.TrimSpace(folderTitle)
+	currentTitle = strings.TrimSpace(currentTitle)
+
+	if folderTitle == "" {
+		return false
+	} else if currentTitle == "" {
+		return true
+	} else if currentTitle == folderTitle {
+		return false
+	}
+
+	parentPath := path.Dir(albumPath)
+
+	if parentPath == "" || parentPath == "." || parentPath == "/" {
+		return false
+	}
+
+	parentPath = clean.SlashPath(parentPath)
+
+	parentTitle := txt.Title(path.Base(parentPath))
+
+	if parentTitle == "" {
+		return false
+	}
+
+	if strings.EqualFold(currentTitle, parentTitle) && !strings.EqualFold(folderTitle, parentTitle) {
+		return true
+	}
+
+	filterPath := extractAlbumFilterPath(albumFilter)
+
+	if filterPath == "" || filterPath == albumPath {
+		return false
+	}
+
+	filterTitle := txt.Title(path.Base(filterPath))
+
+	if filterTitle == "" {
+		return false
+	}
+
+	return strings.EqualFold(currentTitle, filterTitle) && !strings.EqualFold(folderTitle, filterTitle)
+}
+
+// UpdateFolder updates the path, filter, slug, and repairable title for a folder album.
+func (m *Album) UpdateFolder(albumPath, albumFilter, albumTitle string) error {
 	if !m.HasID() {
 		return fmt.Errorf("album does not exist")
 	}
 
-	albumPath = strings.Trim(albumPath, string(os.PathSeparator))
+	albumPath = clean.SlashPath(albumPath)
 	albumSlug := txt.Slug(albumPath)
+	repairTitle := shouldRepairFolderAlbumTitle(m.AlbumTitle, albumTitle, albumPath, m.AlbumFilter)
 
 	if albumSlug == "" || albumPath == "" || albumFilter == "" || !m.HasID() {
 		return fmt.Errorf("folder album must have a path and filter")
-	} else if m.AlbumPath == albumPath && m.AlbumFilter == albumFilter && m.AlbumSlug == albumSlug {
+	} else if m.AlbumPath == albumPath && m.AlbumFilter == albumFilter && m.AlbumSlug == albumSlug && !repairTitle {
 		// Nothing changed.
 		return nil
 	}
 
-	if err := m.Updates(Values{
+	values := Values{
 		"AlbumPath":   albumPath,
 		"AlbumFilter": albumFilter,
 		"AlbumSlug":   albumSlug,
-	}); err != nil {
+	}
+
+	if repairTitle {
+		m.SetTitle(albumTitle)
+		values["AlbumTitle"] = m.AlbumTitle
+	}
+
+	if err := m.Updates(values); err != nil {
 		return err
 	} else if err = UnscopedDb().Exec("UPDATE albums SET album_path = NULL WHERE album_type = ? AND album_path = ? AND id <> ?", AlbumFolder, albumPath, m.ID).Error; err != nil {
 		return err

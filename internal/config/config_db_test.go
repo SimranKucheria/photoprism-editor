@@ -250,17 +250,16 @@ func TestDatabaseProvisionPrefix(t *testing.T) {
 func TestShouldAutoRotateDatabase(t *testing.T) {
 	t.Run("PortalAlwaysFalse", func(t *testing.T) {
 		conf := NewMinimalTestConfig("config", t.TempDir())
+		conf.Options().Edition = Portal
 		conf.Options().NodeRole = cluster.RolePortal
 		conf.Options().DatabaseDriver = MySQL
 		assert.False(t, conf.ShouldAutoRotateDatabase())
 	})
-
 	t.Run("NonMySQLDriverFalse", func(t *testing.T) {
 		conf := NewMinimalTestConfig("config", t.TempDir())
 		conf.Options().DatabaseDriver = SQLite3
 		assert.False(t, conf.ShouldAutoRotateDatabase())
 	})
-
 	t.Run("MySQLMissingFieldsTrue", func(t *testing.T) {
 		conf := NewMinimalTestConfig("config", t.TempDir())
 		conf.Options().DatabaseDriver = MySQL
@@ -307,12 +306,12 @@ func TestConfig_DatabaseDSN(t *testing.T) {
 
 		conf.options.DatabaseDriver = MySQL
 		conf.options.DatabaseServer = "proxy.internal:6032"
-		conf.options.DatabaseName = "tenantdb"
-		conf.options.DatabaseUser = "tenant"
+		conf.options.DatabaseName = "instancedb"
+		conf.options.DatabaseUser = "instance"
 		conf.options.DatabasePassword = "secret"
 		conf.options.DatabaseTimeout = 42
 
-		want := "tenant:secret@tcp(proxy.internal:6032)/tenantdb?charset=utf8mb4,utf8&collation=utf8mb4_unicode_ci&parseTime=true&timeout=42s"
+		want := "instance:secret@tcp(proxy.internal:6032)/instancedb?charset=utf8mb4,utf8&collation=utf8mb4_unicode_ci&parseTime=true&timeout=42s"
 		if got := conf.DatabaseDSN(); got != want {
 			t.Fatalf("DatabaseDSN() = %q, want %q", got, want)
 		}
@@ -323,12 +322,12 @@ func TestConfig_DatabaseDSN(t *testing.T) {
 
 		conf.options.DatabaseDriver = MySQL
 		conf.options.DatabaseServer = "/var/run/mysql.sock"
-		conf.options.DatabaseName = "tenantdb"
-		conf.options.DatabaseUser = "tenant"
+		conf.options.DatabaseName = "instancedb"
+		conf.options.DatabaseUser = "instance"
 		conf.options.DatabasePassword = "secret"
 		conf.options.DatabaseTimeout = 21
 
-		want := "tenant:secret@unix(/var/run/mysql.sock)/tenantdb?charset=utf8mb4,utf8&collation=utf8mb4_unicode_ci&parseTime=true&timeout=21s"
+		want := "instance:secret@unix(/var/run/mysql.sock)/instancedb?charset=utf8mb4,utf8&collation=utf8mb4_unicode_ci&parseTime=true&timeout=21s"
 		if got := conf.DatabaseDSN(); got != want {
 			t.Fatalf("DatabaseDSN() = %q, want %q", got, want)
 		}

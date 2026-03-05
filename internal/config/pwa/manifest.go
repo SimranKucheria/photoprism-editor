@@ -25,7 +25,7 @@ type Manifest struct {
 	Scope               string        `json:"scope"`
 	StartUrl            string        `json:"start_url,omitempty"`
 	Shortcuts           Urls          `json:"shortcuts"`
-	Serviceworker       Serviceworker `json:"serviceworker,omitempty"`
+	Serviceworker       Serviceworker `json:"serviceworker"`
 	Permissions         list.List     `json:"permissions"`
 	OptionalPermissions list.List     `json:"optional_permissions"`
 	HostPermissions     []string      `json:"host_permissions"`
@@ -49,8 +49,8 @@ func NewManifest(c Config) (m *Manifest) {
 		ThemeColor:      clean.Color(c.Color),
 		BackgroundColor: clean.Color(c.Color),
 		Scope:           c.BaseUri,
-		StartUrl:        c.BaseUri + "library/",
-		Shortcuts:       Shortcuts(c.BaseUri),
+		StartUrl:        StartUrl(c.BaseUri, c.FrontendUri),
+		Shortcuts:       Shortcuts(c.BaseUri, c.FrontendUri),
 		Serviceworker: Serviceworker{
 			Src:      fs.SwJsFile,
 			Scope:    c.BaseUri,

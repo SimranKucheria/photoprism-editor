@@ -52,7 +52,7 @@ type User struct {
 	AuthProvider  string         `gorm:"type:bytes;size:128;default:'';" json:"AuthProvider" yaml:"AuthProvider,omitempty"`
 	AuthMethod    string         `gorm:"type:bytes;size:128;default:'';" json:"AuthMethod" yaml:"AuthMethod,omitempty"`
 	AuthIssuer    string         `gorm:"type:bytes;size:255;default:'';" json:"AuthIssuer,omitempty" yaml:"AuthIssuer,omitempty"`
-	AuthID        string         `gorm:"type:bytes;size:255;index;default:'';" json:"AuthID" yaml:"AuthID,omitempty"`
+	AuthID        string         `gorm:"type:bytes;size:255;index;default:'';-:migration;" json:"AuthID" yaml:"AuthID,omitempty"`
 	UserName      string         `gorm:"size:200;index;" json:"Name" yaml:"Name,omitempty"`
 	DisplayName   string         `gorm:"size:200;" json:"DisplayName" yaml:"DisplayName,omitempty"`
 	UserEmail     string         `gorm:"size:255;index;" json:"Email" yaml:"Email,omitempty"`
@@ -85,7 +85,7 @@ type User struct {
 	RefID         string         `gorm:"type:bytes;size:16;" json:"-" yaml:"-"`
 	CreatedAt     time.Time      `json:"CreatedAt" yaml:"-"`
 	UpdatedAt     time.Time      `json:"UpdatedAt" yaml:"-"`
-	DeletedAt     gorm.DeletedAt `sql:"index" json:"DeletedAt,omitempty" yaml:"-"`
+	DeletedAt     gorm.DeletedAt `sql:"index" json:"DeletedAt" yaml:"-"`
 }
 
 // TableName returns the entity table name.
@@ -384,7 +384,7 @@ func (m *User) SaveRelated() *User {
 }
 
 // Updates multiple properties in the database.
-func (m *User) Updates(values interface{}) error {
+func (m *User) Updates(values any) error {
 	return UnscopedDb().Model(m).Updates(values).Error
 }
 

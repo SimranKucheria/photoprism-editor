@@ -118,6 +118,21 @@ show-build:
 	@echo "$(BUILD_TAG)"
 test-all: test acceptance-run-chromium
 fmt: fmt-js fmt-go fmt-swag
+format-tables: # Format Markdown tables in README.md, AGENTS.md, and CODEMAP.md files.
+	@set -eu; \
+	tmp="$$(mktemp)"; \
+	trap 'rm -f "$$tmp"' EXIT INT TERM; \
+	find "$(CURDIR)" -maxdepth 1 -type f \( -name 'README.md' -o -name 'AGENTS.md' -o -name 'CODEMAP.md' \) -print0 >> "$$tmp"; \
+	for dir in internal pkg docker setup; do \
+		if [ -d "$$dir" ]; then \
+			find "$$dir" -type f \( -name 'README.md' -o -name 'AGENTS.md' -o -name 'CODEMAP.md' \) -print0 >> "$$tmp"; \
+		fi; \
+	done; \
+	if [ ! -s "$$tmp" ]; then \
+		echo "No markdown files found for table formatting."; \
+		exit 0; \
+	fi; \
+	xargs -0 npx --yes markdown-table-formatter < "$$tmp"
 clean-local: clean-local-config clean-local-cache
 upgrade: dep-upgrade-js dep-upgrade
 devtools: install-go dep-npm
@@ -169,6 +184,10 @@ fix-permissions:
 	fi
 gettext-merge:
 	./scripts/gettext-merge.sh
+gettext-extract:
+	./scripts/gettext-extract.sh
+gettext-compile:
+	$(MAKE) -C frontend gettext-compile
 gettext-clear-fuzzy:
 	./scripts/gettext-clear-fuzzy.sh
 clean:
@@ -254,6 +273,12 @@ acceptance-auth-stop:
 	./photoprism --auth-mode="password" -c "./storage/acceptance/config-active" stop
 start:
 	./photoprism start -d
+start-mariadb:
+	./photoprism --database-driver mysql --database-name photoprism --database-server mariadb:4001 --database-password photoprism --database-user photoprism start -d
+start-postgres:
+	./photoprism --database-driver postgres --database-name photoprism --database-server postgres:5432 --database-password photoprism --database-user photoprism start -d
+start-sqlite:
+	./photoprism --database-driver sqlite --database-dsn "storage/index.db?_busy_timeout=5000&_foreign_keys=on" start -d
 stop:
 	./photoprism stop
 terminal:
@@ -293,6 +318,7 @@ audit: audit-frontend audit-backend
 audit-frontend:
 	$(MAKE) -C frontend audit
 audit-backend: dep-vuln
+dep-audit: dep-vuln
 dep-vuln:
 	@echo "Checking Go production dependencies for security vulnerabilities..."
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./pkg/... ./internal/...
@@ -313,7 +339,7 @@ dep-npm:
 	  npm install -g --location=global --no-fund --no-audit "npm@latest"; \
         fi
 dep-js:
-	(cd frontend && npm ci --ignore-scripts --no-update-notifier --no-audit)
+	npm ci --ignore-scripts --no-update-notifier --no-audit
 codex: dep-codex codex-version
 codex-version:
 	@echo "🤖 Installed $$(codex --version)."
@@ -325,6 +351,46 @@ dep-codex:
 	else \
 	  npm install -g --location=global --no-fund --no-audit "@openai/codex@latest"; \
 	fi
+gh: dep-gh gh-version
+gh-version:
+	@echo "🐙 Installed $$(gh --version | head -n 1)."
+dep-gh:
+	@echo "Installing GitHub CLI..."
+	@if command -v apt-get >/dev/null 2>&1; then \
+	  ./scripts/dist/install-gh.sh; \
+	elif command -v dnf >/dev/null 2>&1; then \
+	  if command -v sudo >/dev/null 2>&1; then \
+	    sudo dnf install -y gh; \
+	  else \
+	    dnf install -y gh; \
+	  fi; \
+	elif command -v brew >/dev/null 2>&1; then \
+	  brew install gh; \
+	else \
+	  echo "ERROR: Could not install gh automatically. See https://cli.github.com/"; \
+	  exit 1; \
+	fi
+claude:
+	@echo "Installing Claude Code..."
+	@[ -n "$(HOME)" ] && [ "$(HOME)" != "/" ] || (echo "ERROR: Unsafe HOME path '$(HOME)'"; exit 1)
+	@if [ -e "$(HOME)/.cache" ] && [ ! -w "$(HOME)/.cache" ]; then \
+	  echo "Fixing ownership of \"$(HOME)/.cache\"..."; \
+	  if command -v sudo >/dev/null 2>&1; then \
+	    sudo chown "$(UID):$(GID)" "$(HOME)/.cache"; \
+	  else \
+	    chown "$(UID):$(GID)" "$(HOME)/.cache"; \
+	  fi; \
+	fi
+	@if [ -e "$(HOME)/.cache/claude" ] && [ ! -w "$(HOME)/.cache/claude" ]; then \
+	  echo "Fixing ownership of \"$(HOME)/.cache/claude\"..."; \
+	  if command -v sudo >/dev/null 2>&1; then \
+	    sudo chown -R "$(UID):$(GID)" "$(HOME)/.cache/claude"; \
+	  else \
+	    chown -R "$(UID):$(GID)" "$(HOME)/.cache/claude"; \
+	  fi; \
+	fi
+	install -d -m 700 -- "$(HOME)/.cache/claude"
+	curl -fsSL https://claude.ai/install.sh | bash
 dep-go:
 	go build -v ./...
 dep-upgrade:
@@ -1079,10 +1145,6 @@ dummy-ldap:
 	$(DOCKER_COMPOSE) up -d -V --force-recreate dummy-ldap
 
 # PostgreSQL-specific targets:
-start-alldbms:
-	$(DOCKER_COMPOSE) -f compose.alldbms.yaml up
-start-postgres:
-	$(DOCKER_COMPOSE) -f compose.postgres.yaml up
 docker-postgres:
 	docker pull --platform=amd64 photoprism/develop:questing
 	docker pull --platform=amd64 photoprism/develop:questing-slim

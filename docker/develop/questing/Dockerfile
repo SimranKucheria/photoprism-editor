@@ -40,7 +40,11 @@ ENV PHOTOPRISM_ARCH=$TARGETARCH \
     PROG="photoprism" \
     S6_KEEP_ENV=1 \
     S6_VERBOSITY=0 \
-    S6_LOGGING=0
+    S6_LOGGING=0 \
+    CODEX_HOME="/go/src/github.com/photoprism/photoprism/.local/codex" \
+    CLAUDE_CONFIG_DIR="/go/src/github.com/photoprism/photoprism/.local/claude" \
+    GH_CONFIG_DIR="/go/src/github.com/photoprism/photoprism/.local/gh" \
+    GH_REPO="photoprism/photoprism"
 
 # Copy scripts and package sources config.
 COPY --chown=root:root --chmod=755 /scripts/dist/ /scripts/
@@ -74,6 +78,7 @@ RUN echo 'APT::Acquire::Retries "3";' > /etc/apt/apt.conf.d/80retries && \
         xvfb fonts-freefont-ttf fonts-ipafont-gothic fonts-noto-color-emoji \
         fonts-tlwg-loma-otf fonts-unifont fonts-wqy-zenhei xfonts-cyrillic \
         fonts-ipafont-mincho fonts-tlwg-loma xfonts-base xfonts-scalable \
+        openssh-client \
     && \
     ln -sf /usr/bin/fdfind /usr/local/bin/fd && \
     ln -sf /usr/bin/batcat /usr/local/bin/bat && \
@@ -94,6 +99,7 @@ RUN echo 'APT::Acquire::Retries "3";' > /etc/apt/apt.conf.d/80retries && \
     /scripts/install-go-tools.sh && \
     echo 'alias go=richgo ll="ls -alh"' >> /etc/skel/.bashrc && \
     echo 'export PS1="\u@$DOCKER_TAG:\w\$ "' >> /etc/skel/.bashrc && \
+    echo 'export PATH="$PATH:$HOME/.local/bin"' >> /etc/skel/.bashrc && \
     /scripts/install-dircolors.sh && \
     cp /etc/skel/.bashrc /root/.bashrc && \
     cp /scripts/convert/policy.xml /etc/ImageMagick-7/policy.xml && \

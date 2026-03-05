@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // G505: Stable non-cryptographic face identifier hash.
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
@@ -101,6 +101,7 @@ func (m *Face) SetEmbeddings(embeddings face.Embeddings) (err error) {
 		return err
 	}
 
+	//nolint:gosec // G401: Stable identifier hash; not used for security decisions.
 	s := sha1.Sum(m.EmbeddingJSON)
 
 	// Update Face ID, Kind, and reset match timestamp,
@@ -397,7 +398,7 @@ func (m *Face) Delete() error {
 }
 
 // Update a face property in the database.
-func (m *Face) Update(attr string, value interface{}) error {
+func (m *Face) Update(attr string, value any) error {
 	if m.ID == "" {
 		return fmt.Errorf("empty id")
 	}
@@ -408,7 +409,7 @@ func (m *Face) Update(attr string, value interface{}) error {
 }
 
 // Updates face properties in the database.
-func (m *Face) Updates(values interface{}) error {
+func (m *Face) Updates(values any) error {
 	if m.ID == "" {
 		return fmt.Errorf("empty id")
 	}

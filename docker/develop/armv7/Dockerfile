@@ -61,7 +61,7 @@ RUN echo 'APT::Acquire::Retries "3";' > /etc/apt/apt.conf.d/80retries && \
         libfontconfig1-dev libhdf5-serial-dev libzmq3-dev libjxl-dev libjxl-tools librav1e-dev \
         libx264-dev libx265-dev libde265-dev libaom-dev libnss3 libxtst6 librsvg2-bin tzdata \
         exiftool ffmpeg libavcodec-extra libavcodec-dev libdav1d-dev libvips-dev libsharpyuv-dev \
-        iputils-ping dnsutils \
+        iputils-ping dnsutils openssh-client \
     && \
     /scripts/install-nodejs.sh && \
     /scripts/install-yt-dlp.sh && \
@@ -75,6 +75,7 @@ RUN echo 'APT::Acquire::Retries "3";' > /etc/apt/apt.conf.d/80retries && \
     /scripts/install-go-tools.sh && \
     echo 'alias go=richgo ll="ls -alh"' >> /etc/skel/.bashrc && \
     echo 'export PS1="\u@$DOCKER_TAG:\w\$ "' >> /etc/skel/.bashrc && \
+    echo 'export PATH="$PATH:$HOME/.local/bin"' >> /etc/skel/.bashrc && \
     /scripts/install-dircolors.sh && \
     cp /etc/skel/.bashrc /root/.bashrc && \
     cp /scripts/convert/policy.xml /etc/ImageMagick-6/policy.xml && \

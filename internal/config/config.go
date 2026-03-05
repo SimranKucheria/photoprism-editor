@@ -32,11 +32,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/dustin/go-humanize"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -87,7 +90,7 @@ type Config struct {
 }
 
 // Values is a shorthand alias for map[string]interface{}.
-type Values = map[string]interface{}
+type Values = map[string]any
 
 func init() {
 	TotalMem = memory.TotalMemory()
@@ -488,6 +491,105 @@ func (c *Config) Options() *Options {
 	return c.options
 }
 
+// SaveOptionsPatch merges a patch into options.yml, reloads in-memory options,
+// and returns true when persisted values changed.
+func (c *Config) SaveOptionsPatch(patch Values) (bool, error) {
+	if c == nil || c.options == nil || len(patch) == 0 {
+		return false, nil
+	}
+
+	fileName, values, err := c.loadOptionsYAML()
+	if err != nil {
+		return false, err
+	}
+
+	if !mergeOptionValues(values, patch) {
+		return false, nil
+	}
+
+	return c.writeOptionsYAML(fileName, values)
+}
+
+// loadOptionsYAML loads options.yml into a writable map and returns its file path.
+func (c *Config) loadOptionsYAML() (string, Values, error) {
+	fileName := c.OptionsYaml()
+	if fileName == "" {
+		return "", nil, fmt.Errorf("invalid options.yml filename")
+	}
+
+	if err := fs.MkdirAll(filepath.Dir(fileName)); err != nil {
+		return fileName, nil, err
+	}
+
+	values := Values{}
+
+	if !fs.FileExists(fileName) {
+		return fileName, values, nil
+	}
+
+	b, err := os.ReadFile(fileName) //nolint:gosec // path derived from config directory
+	if err != nil || len(b) == 0 {
+		return fileName, values, err
+	}
+
+	if err = yaml.Unmarshal(b, &values); err != nil {
+		return fileName, nil, fmt.Errorf("failed parsing %s: %w", fileName, err)
+	}
+
+	if values == nil {
+		values = Values{}
+	}
+
+	return fileName, values, nil
+}
+
+// setOptionString sets a string value in the options map.
+func setOptionString(values Values, key string, value *string) {
+	if values == nil || value == nil {
+		return
+	}
+
+	values[key] = *value
+}
+
+// mergeOptionValues applies source values to destination and reports changes.
+func mergeOptionValues(dst Values, src Values) bool {
+	if dst == nil || len(src) == 0 {
+		return false
+	}
+
+	changed := false
+
+	for key, value := range src {
+		if current, ok := dst[key]; ok && reflect.DeepEqual(current, value) {
+			continue
+		}
+
+		dst[key] = value
+		changed = true
+	}
+
+	return changed
+}
+
+// writeOptionsYAML persists merged options values and reloads in-memory options.
+func (c *Config) writeOptionsYAML(fileName string, values Values) (bool, error) {
+	b, err := yaml.Marshal(values)
+	if err != nil {
+		return false, err
+	}
+
+	if err = os.WriteFile(fileName, b, fs.ModeConfigFile); err != nil {
+		return false, err
+	}
+
+	if err = c.options.Load(fileName); err != nil {
+		return true, err
+	}
+
+	return true, nil
+}
+
 // Unsafe checks if unsafe settings are allowed.
 func (c *Config) Unsafe() bool {
 	return c.options.Unsafe
@@ -751,12 +853,9 @@ func (c *Config) IndexWorkers() int {
 	}
 
 	// NumCPU returns the number of logical CPU cores.
-	cores := runtime.NumCPU()
-
-	// Limit to physical cores to avoid high load on HT capable CPUs.
-	if cores > cpuid.CPU.PhysicalCores {
-		cores = cpuid.CPU.PhysicalCores
-	}
+	cores := min(
+		// Limit to physical cores to avoid high load on HT capable CPUs.
+		runtime.NumCPU(), cpuid.CPU.PhysicalCores)
 
 	// Limit number of workers when using SQLite3 to avoid database locking issues.
 	if c.DatabaseDriver() == SQLite3 && (cores >= 8 && c.options.IndexWorkers <= 0 || c.options.IndexWorkers > 4) {

@@ -33,7 +33,7 @@ func authBearer(req *http.Request) {
 
 func authBasic(req *http.Request) {
 	sess := entity.SessionFixtures.Get("alice_token_webdav")
-	basic := []byte(fmt.Sprintf("alice:%s", sess.AuthToken()))
+	basic := fmt.Appendf(nil, "alice:%s", sess.AuthToken())
 	req.Header.Set(header.Auth, fmt.Sprintf("%s %s", header.AuthBasic, base64.StdEncoding.EncodeToString(basic)))
 }
 
@@ -70,7 +70,7 @@ func TestWebDAV_NoTrailingSlashRedirectOnBasePath(t *testing.T) {
 		siteURL string
 	}{
 		{name: "DefaultBasePath", siteURL: "http://localhost:2342/"},
-		{name: "PrefixedBasePath", siteURL: "https://app.localssl.dev/p/pro-1/"},
+		{name: "PrefixedBasePath", siteURL: "https://app.localssl.dev/i/pro-1/"},
 	}
 
 	for _, tc := range testCases {

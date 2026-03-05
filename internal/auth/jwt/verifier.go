@@ -31,7 +31,7 @@ type VerifierStatus struct {
 	CacheETag       string    `json:"cacheEtag,omitempty"`
 	KeyIDs          []string  `json:"keyIds,omitempty"`
 	KeyCount        int       `json:"keyCount"`
-	CacheFetchedAt  time.Time `json:"cacheFetchedAt,omitempty"`
+	CacheFetchedAt  time.Time `json:"cacheFetchedAt"`
 	CacheAgeSeconds int64     `json:"cacheAgeSeconds"`
 	CacheTTLSeconds int       `json:"cacheTtlSeconds"`
 	CacheStale      bool      `json:"cacheStale"`
@@ -59,7 +59,7 @@ type cacheEntry struct {
 	FetchedAt int64       `json:"fetchedAt"`
 }
 
-// Verifier validates Portal-issued JWTs on Nodes using JWKS with caching.
+// Verifier validates Portal-issued JWTs on instances and services using JWKS with caching.
 type Verifier struct {
 	conf *config.Config
 
@@ -137,7 +137,7 @@ func (v *Verifier) VerifyToken(ctx context.Context, tokenString string, expected
 	)
 
 	claims := &Claims{}
-	keyFunc := func(token *gojwt.Token) (interface{}, error) {
+	keyFunc := func(token *gojwt.Token) (any, error) {
 		kid, _ := token.Header["kid"].(string)
 
 		if kid == "" {
@@ -171,7 +171,7 @@ func (v *Verifier) VerifyToken(ctx context.Context, tokenString string, expected
 
 	scopeSet := map[string]struct{}{}
 
-	for _, s := range strings.Fields(claims.Scope) {
+	for s := range strings.FieldsSeq(claims.Scope) {
 		scopeSet[s] = struct{}{}
 	}
 
@@ -235,7 +235,7 @@ func VerifyTokenWithKeys(tokenString string, expected ExpectedClaims, keys []Pub
 
 	parser := gojwt.NewParser(options...)
 	claims := &Claims{}
-	keyFunc := func(token *gojwt.Token) (interface{}, error) {
+	keyFunc := func(token *gojwt.Token) (any, error) {
 		kid, _ := token.Header["kid"].(string)
 		if kid == "" {
 			return nil, errors.New("jwt: missing kid header")
@@ -261,7 +261,7 @@ func VerifyTokenWithKeys(tokenString string, expected ExpectedClaims, keys []Pub
 
 	if len(expected.Scope) > 0 {
 		scopeSet := map[string]struct{}{}
-		for _, s := range strings.Fields(claims.Scope) {
+		for s := range strings.FieldsSeq(claims.Scope) {
 			scopeSet[s] = struct{}{}
 		}
 		for _, req := range expected.Scope {
@@ -433,6 +433,7 @@ func (v *Verifier) fetchJWKS(ctx context.Context, url, etag string) (*jwksFetchR
 		req.Header.Set("If-None-Match", etag)
 	}
 
+	// #nosec G704 JWKS URL is validated via config.SetJWKSUrl and verifier call paths.
 	resp, err := v.httpClient.Do(req)
 
 	if err != nil {
@@ -543,11 +544,7 @@ func backoffDuration(attempt int) time.Duration {
 		attempt = 1
 	}
 
-	base := jwksFetchBaseDelay << (attempt - 1)
-
-	if base > jwksFetchMaxDelay {
-		base = jwksFetchMaxDelay
-	}
+	base := min(jwksFetchBaseDelay<<(attempt-1), jwksFetchMaxDelay)
 
 	jitterRange := base / 2
 

@@ -40,7 +40,11 @@ ENV PHOTOPRISM_ARCH=$TARGETARCH \
     PROG="photoprism" \
     S6_KEEP_ENV=1 \
     S6_VERBOSITY=0 \
-    S6_LOGGING=0
+    S6_LOGGING=0 \
+    CODEX_HOME="/go/src/github.com/photoprism/photoprism/.local/codex" \
+    CLAUDE_CONFIG_DIR="/go/src/github.com/photoprism/photoprism/.local/claude" \
+    GH_CONFIG_DIR="/go/src/github.com/photoprism/photoprism/.local/gh" \
+    GH_REPO="photoprism/photoprism"
 
 # Copy scripts and package sources config.
 COPY --chown=root:root --chmod=755 /scripts/dist/ /scripts/
@@ -57,7 +61,7 @@ RUN echo 'APT::Acquire::Retries "3";' > /etc/apt/apt.conf.d/80retries && \
     apt-get -qq install \
         libc6 ca-certificates bash sudo nano avahi-utils jq lsof lshw \
         xz-utils exiftool sqlite3 postgresql-client tzdata gpg make zip unzip wget curl rsync \
-        imagemagick libvips-dev rawtherapee ffmpeg libavcodec-extra x264 x265 libde265-dev \
+        imagemagick rawtherapee ffmpeg libavcodec-extra x264 x265 libde265-dev \
         libaom-dev libvpx-dev libwebm-dev libjpeg-dev libmatroska-dev libdvdread-dev libebml5 libgav1-bin libatomic1 \
         va-driver-all libva2 iputils-ping dnsutils libmagic-mgc binutils binutils-gold \
     && \
@@ -70,6 +74,7 @@ RUN echo 'APT::Acquire::Retries "3";' > /etc/apt/apt.conf.d/80retries && \
         libc6-dev libhdf5-serial-dev libzmq3-dev libssl-dev libnss3 \
         libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev fonts-roboto \
         librsvg2-bin ghostscript gsfonts pdf2svg ps2eps \
+        openssh-client \
     && \
     ln -sf /usr/bin/fdfind /usr/local/bin/fd && \
     ln -sf /usr/bin/batcat /usr/local/bin/bat && \
@@ -81,6 +86,7 @@ RUN echo 'APT::Acquire::Retries "3";' > /etc/apt/apt.conf.d/80retries && \
     /scripts/install-darktable.sh && \
     /scripts/install-yt-dlp.sh && \
     /scripts/install-libheif.sh && \
+    /scripts/install-libvips.sh && \
     /scripts/install-chrome.sh && \
     echo "ALL ALL=(ALL) NOPASSWD:SETENV: ALL" >> /etc/sudoers.d/all && \
     mkdir -p /etc/skel/.config/go/telemetry && \
@@ -90,6 +96,7 @@ RUN echo 'APT::Acquire::Retries "3";' > /etc/apt/apt.conf.d/80retries && \
     /scripts/install-go-tools.sh && \
     echo 'alias go=richgo ll="ls -alh"' >> /etc/skel/.bashrc && \
     echo 'export PS1="\u@$DOCKER_TAG:\w\$ "' >> /etc/skel/.bashrc && \
+    echo 'export PATH="$PATH:$HOME/.local/bin"' >> /etc/skel/.bashrc && \
     /scripts/install-dircolors.sh && \
     cp /etc/skel/.bashrc /root/.bashrc && \
     cp /scripts/convert/policy.xml /etc/ImageMagick-6/policy.xml && \

@@ -25,7 +25,7 @@ func (f CliFlag) Skip(tags []string) bool {
 func (f CliFlag) Fields() reflect.Value {
 	fields := reflect.ValueOf(f.Flag)
 
-	for fields.Kind() == reflect.Ptr {
+	for fields.Kind() == reflect.Pointer {
 		fields = reflect.Indirect(fields)
 	}
 
@@ -102,6 +102,8 @@ func (f CliFlag) Usage() string {
 	switch {
 	case list.Contains(f.Tags, EnvSponsor):
 		return f.Flag.GetUsage() + " *members only*"
+	case list.Contains(f.Tags, Portal):
+		return f.Flag.GetUsage() + " *portal*"
 	case list.Contains(f.Tags, Pro):
 		return f.Flag.GetUsage() + " *pro*"
 	case list.Contains(f.Tags, Plus):

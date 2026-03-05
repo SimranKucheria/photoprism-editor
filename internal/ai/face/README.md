@@ -1,6 +1,6 @@
-## Face Detection and Embedding Guidelines
+## Face Detection & Embedding Guidelines
 
-**Last Updated:** December 23, 2025
+**Last Updated:** March 3, 2026
 
 ### Overview
 
@@ -69,7 +69,7 @@ This guarantees that Euclidean distance comparisons are equivalent to cosine com
 #### Face Kind Reference
 
 | Kind             | Value | Source                                     | Matching Behavior                               | Notes                                                                                                   |
-|------------------|:-----:|--------------------------------------------|-------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+|:-----------------|:-----:|:-------------------------------------------|:------------------------------------------------|:--------------------------------------------------------------------------------------------------------|
 | `RegularFace`    |   1   | Default embedding classification           | Eligible for matching and clustering            | Produced when embeddings are distinct and not flagged as child/background.                              |
 | `ChildrenFace`   |   2   | `Embedding.IsChild()` vs. curated samples  | Excluded from matching (`SkipMatching = true`)  | Helps avoid unreliable matches on juvenile faces; clusters are retained but not auto-assigned.          |
 | `BackgroundFace` |   3   | `Embedding.IsBackground()` heuristics      | Excluded from matching and clustering           | Used for non-face artifacts and background detections; prevents noise from entering optimization runs.  |
@@ -120,15 +120,26 @@ Additional safeguards were introduced in October 2025 so stubborn clusters are o
   - `TestMergeFaces/SameSubjects`
   - `TestNet`
 
+### Troubleshooting FaceNet Model Files
+
+If FaceNet unit tests fail with `Read less bytes than requested`, the local model file is typically incomplete or corrupted (`assets/models/facenet/saved_model.pb`).
+
+Recovery steps:
+
+- `rm -f /tmp/photoprism/facenet.zip`
+- `rm -rf assets/models/facenet`
+- `make dep-tensorflow` (or `scripts/download-facenet.sh`)
+- Re-run `go test ./internal/ai/face -run TestNet -count=1`
+
 ### Configuration Summary
 
-| Setting                  | Default                      | Description                                                                                     |
-|--------------------------|------------------------------|-------------------------------------------------------------------------------------------------|
-| `FACE_ENGINE`            | `auto`                       | Detection engine (`auto`, `pigo`, `onnx`). `auto` resolves to ONNX when the SCRFD model exists. |
-| `FACE_ENGINE_THREADS`    | `runtime.NumCPU()/2` (≥1)    | ONNX inference threads; ignored by Pigo.                                                        |
-| `FACE_ANGLE`             | `-0.3,0,0.3`                 | Detection angles (radians) swept by Pigo.                                                       |
-| `FACE_SCORE`             | `9.0` (with dynamic offsets) | Base quality threshold before scale adjustments.                                                |
-| `FACE_OVERLAP`           | `42`                         | Maximum allowed IoU when deduplicating markers.                                                 |
+| Setting               | Default                      | Description                                                                                     |
+|:----------------------|:-----------------------------|:------------------------------------------------------------------------------------------------|
+| `FACE_ENGINE`         | `auto`                       | Detection engine (`auto`, `pigo`, `onnx`). `auto` resolves to ONNX when the SCRFD model exists. |
+| `FACE_ENGINE_THREADS` | `runtime.NumCPU()/2` (≥1)    | ONNX inference threads; ignored by Pigo.                                                        |
+| `FACE_ANGLE`          | `-0.3,0,0.3`                 | Detection angles (radians) swept by Pigo.                                                       |
+| `FACE_SCORE`          | `9.0` (with dynamic offsets) | Base quality threshold before scale adjustments.                                                |
+| `FACE_OVERLAP`        | `42`                         | Maximum allowed IoU when deduplicating markers.                                                 |
 
 Run scheduling is configured through the face model entry in `vision.yml`. Adjust the model’s `Run` value (for example `on-schedule`, `manual`, or `never`) to control when detection and embedding jobs execute—no separate `FACE_ENGINE_RUN` flag is required.
 When the model is left on the default `auto` run mode, face detection participates in manual, auto, and on-demand workflows but skips scheduled cron runs so background jobs do not trigger unexpectedly; the same applies to an explicit `on-demand` run mode, which now skips cron executions by default. Set `Run` to `on-schedule` explicitly if you want faces processed during scheduled vision passes.
@@ -138,7 +149,7 @@ When the model is left on the default `auto` run mode, face detection participat
 ### Benchmark Reference
 
 | Benchmark                     | Before             | After           |
-|-------------------------------|--------------------|-----------------|
+|:------------------------------|:-------------------|:----------------|
 | `BenchmarkEmbeddingDist`      | ~242 ns/op         | ~155 ns/op      |
 | `BenchmarkEmbeddingsMidpoint` | ~194 µs/op, 528 KB | ~99 µs/op, 4 KB |
 

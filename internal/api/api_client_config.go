@@ -6,14 +6,33 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/photoprism/photoprism/internal/auth/acl"
+	"github.com/photoprism/photoprism/internal/entity"
 	"github.com/photoprism/photoprism/internal/event"
 	"github.com/photoprism/photoprism/internal/photoprism/get"
+	"github.com/photoprism/photoprism/pkg/http/header"
 )
 
 // UpdateClientConfig publishes updated client configuration values over the websocket connections.
 func UpdateClientConfig() {
+	if !entity.HasDbProvider() {
+		return
+	}
+
+	conf := get.Config()
+	if conf == nil {
+		return
+	}
+
+	clientConfig := conf.ClientUser(false)
+
 	go func() {
-		event.Publish("config.updated", event.Data{"config": get.Config().ClientUser(false)})
+		defer func() {
+			if r := recover(); r != nil {
+				log.Warnf("api: failed to publish updated client config (%v)", r)
+			}
+		}()
+
+		event.Publish("config.updated", event.Data{"config": clientConfig})
 	}()
 }
 
@@ -28,6 +47,12 @@ func UpdateClientConfig() {
 //	@Router		/api/v1/config [get]
 func GetClientConfig(router *gin.RouterGroup) {
 	router.GET("/config", func(c *gin.Context) {
+		// Prevent CDNs from caching this endpoint.
+		if header.IsCdn(c.Request) {
+			AbortNotFound(c)
+			return
+		}
+
 		conf := get.Config()
 
 		if s := AuthAny(c, acl.ResourceConfig, acl.Permissions{acl.ActionView}); s.Valid() {
