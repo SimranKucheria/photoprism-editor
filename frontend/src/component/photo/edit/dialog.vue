@@ -73,6 +73,14 @@
           <v-badge v-if="model.Files.length" color="surface-variant" inline :content="model.Files.length"></v-badge>
         </v-tab>
 
+        <v-tab v-if="canEdit" id="tab-ai" value="ai" ripple>
+          <v-icon v-if="$vuetify.display.smAndDown" :title="$gettext('AI Edit')">mdi-robot-outline</v-icon>
+          <template v-else>
+            <v-icon :size="18" start>mdi-robot-outline</v-icon>
+            {{ $gettext(`AI Edit`) }}
+          </template>
+        </v-tab>
+
         <v-tab v-if="canEdit" id="tab-info" value="info" ripple>
           <v-icon>mdi-cog</v-icon>
         </v-tab>
@@ -95,6 +103,10 @@
           <p-tab-photo-files :uid="uid" @close="close"></p-tab-photo-files>
         </v-tabs-window-item>
 
+        <v-tabs-window-item v-if="canEdit" value="ai">
+          <p-tab-photo-ai :uid="uid" @close="close"></p-tab-photo-ai>
+        </v-tabs-window-item>
+
         <v-tabs-window-item v-if="canEdit" value="info">
           <p-tab-photo-info :uid="uid" @close="close"></p-tab-photo-info>
         </v-tabs-window-item>
@@ -110,6 +122,7 @@ import PhotoLabels from "component/photo/edit/labels.vue";
 import PhotoPeople from "component/photo/edit/people.vue";
 import PhotoFiles from "component/photo/edit/files.vue";
 import PhotoInfo from "component/photo/edit/info.vue";
+import PhotoAI from "component/photo/edit/ai.vue";
 
 export default {
   name: "PPhotoEditDialog",
@@ -118,6 +131,7 @@ export default {
     "p-tab-photo-labels": PhotoLabels,
     "p-tab-photo-people": PhotoPeople,
     "p-tab-photo-files": PhotoFiles,
+    "p-tab-photo-ai": PhotoAI,
     "p-tab-photo-info": PhotoInfo,
   },
   props: {

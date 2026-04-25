@@ -1136,6 +1136,18 @@ export class Photo extends RestModel {
     return $api.put(`${this.getEntityResource()}/files/${file.UID}/orientation`, values).then((r) => Promise.resolve(this.setValues(r.data)));
   }
 
+  generateEditPlan(prompt) {
+    return $api.post(`${this.getEntityResource()}/edit/plan`, { prompt }).then((r) => Promise.resolve(r.data));
+  }
+
+  resetEditPlan(planId) {
+    return $api.post(`${this.getEntityResource()}/edit/reset`, { planId }).then((r) => Promise.resolve(r.data));
+  }
+
+  getEditPlanStatus(planId) {
+    return $api.get(`${this.getEntityResource()}/edit/status/${planId}`).then((r) => Promise.resolve(r.data));
+  }
+
   like() {
     this.Favorite = true;
     return $api.post(this.getEntityResource() + "/like");
